@@ -1,4 +1,4 @@
-# Android-Face-Detection
+# Android-Face-Recognition
 
 ## Inspired by :
 - https://medium.com/@estebanuri/real-time-face-recognition-with-android-tensorflow-lite-14e9c6cc53a5
