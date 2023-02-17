@@ -1,86 +1,78 @@
 package com.thelazybattley.facedetection
 
-import android.graphics.Bitmap
-import android.graphics.Rect
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
-import android.util.Size
-import android.view.View
-import androidx.activity.ComponentActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
 import com.thelazybattley.facedetection.databinding.ActivityMainBinding
-import com.thelazybattley.facedetection.ui.xml.xml.FaceDetectionCameraImpl
+import com.thelazybattley.facedetection.fragments.PeopleListFragment
+import com.thelazybattley.facedetection.fragments.PreviewViewFragment
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     private var _binding: ActivityMainBinding? = null
     private val binding get() = _binding!!
 
-    private val camera = FaceDetectionCameraImpl(this)
-
     companion object {
         private const val TAG = "MainActivity"
-    }
+        private const val REQUEST_CODE_PERMISSIONS = 10
+        private val REQUIRED_PERMISSIONS =
+            mutableListOf(
+                Manifest.permission.CAMERA,
+                Manifest.permission.RECORD_AUDIO
+            ).apply {
+                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                    add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                }
+            }.toTypedArray()
 
-    private val faceListener: (Rect) -> Unit = { rect ->
-        val bitmap = binding.viewFinder.bitmap
-        try {
-            val croppedBitmap = Bitmap.createBitmap(
-                bitmap!!,
-                rect.left,
-                rect.top,
-                rect.width(),
-                rect.height()
-            )
-            binding.ivCroppedImage.setImageBitmap(croppedBitmap)
-            binding.ivCroppedImage.visibility = View.VISIBLE
-            binding.viewFinder.visibility = View.GONE
-            binding.retry.visibility = View.VISIBLE
-            camera.stopCamera()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         _binding = ActivityMainBinding.inflate(layoutInflater)
-        camera.registerLifecycleOwner(this)
-        camera.setViewBinding(binding = binding)
         setContentView(binding.root)
-        binding.retry.setOnClickListener {
-            camera.startCamera(
-                size = Size(
-                    binding.viewFinder.width,
-                    binding.viewFinder.height
-                ),
-                faceListener = {
-                    faceListener(it)
-                }
+        val peopleListFragment = PeopleListFragment()
+        val previewViewFragment = PreviewViewFragment()
+
+        if (!isAllPermissionGranted()) {
+            ActivityCompat.requestPermissions(
+                this,
+                REQUIRED_PERMISSIONS,
+                REQUEST_CODE_PERMISSIONS
             )
         }
+
+        binding.bnvActions.setOnItemSelectedListener {
+            when (it.itemId) {
+                R.id.takepicture -> setCurrentFragment(previewViewFragment)
+                R.id.scan -> setCurrentFragment(previewViewFragment)
+                R.id.people -> setCurrentFragment(peopleListFragment)
+            }
+            true
+        }
+        binding.bnvActions.selectedItemId = R.id.takepicture
     }
 
-    override fun onStart() {
-        super.onStart()
-        var isCameraStarted = false
-        binding.viewFinder.viewTreeObserver.addOnGlobalLayoutListener {
-            if (binding.viewFinder.width > 0 && !isCameraStarted) {
-                isCameraStarted = true
-                camera.startCamera(
-                    size = Size(
-                        binding.viewFinder.width,
-                        binding.viewFinder.height
-                    ),
-                    faceListener = {
-                        faceListener(it)
-                    }
-                )
-            }
-        }
+    private fun isAllPermissionGranted() = REQUIRED_PERMISSIONS.all {
+        ContextCompat.checkSelfPermission(
+            /* context = */ this, /* permission = */ it
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
     override fun onDestroy() {
         super.onDestroy()
         _binding = null
     }
-}
 
+    private fun setCurrentFragment(fragment: Fragment) {
+        supportFragmentManager.beginTransaction().apply {
+            replace(R.id.fcv_fragment, fragment)
+            commit()
+        }
+    }
+}
