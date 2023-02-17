@@ -1,6 +1,7 @@
 package com.thelazybattley.facedetection
 
 import android.graphics.Bitmap
+import android.graphics.Rect
 import android.os.Bundle
 import android.util.Size
 import android.view.View
@@ -19,12 +20,43 @@ class MainActivity : ComponentActivity() {
         private const val TAG = "MainActivity"
     }
 
+    private val faceListener: (Rect) -> Unit = { rect ->
+        val bitmap = binding.viewFinder.bitmap
+        try {
+            val croppedBitmap = Bitmap.createBitmap(
+                bitmap!!,
+                rect.left,
+                rect.top,
+                rect.width(),
+                rect.height()
+            )
+            binding.ivCroppedImage.setImageBitmap(croppedBitmap)
+            binding.ivCroppedImage.visibility = View.VISIBLE
+            binding.viewFinder.visibility = View.GONE
+            binding.retry.visibility = View.VISIBLE
+            camera.stopCamera()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         _binding = ActivityMainBinding.inflate(layoutInflater)
         camera.registerLifecycleOwner(this)
         camera.setViewBinding(binding = binding)
         setContentView(binding.root)
+        binding.retry.setOnClickListener {
+            camera.startCamera(
+                size = Size(
+                    binding.viewFinder.width,
+                    binding.viewFinder.height
+                ),
+                faceListener = {
+                    faceListener(it)
+                }
+            )
+        }
     }
 
     override fun onStart() {
@@ -38,18 +70,8 @@ class MainActivity : ComponentActivity() {
                         binding.viewFinder.width,
                         binding.viewFinder.height
                     ),
-                    faceListener = { rect ->
-                        val bitmap = binding.viewFinder.bitmap ?: return@startCamera
-                        val croppedBitmap = Bitmap.createBitmap(
-                            bitmap,
-                            rect.left,
-                            rect.top,
-                            rect.right - rect.left,
-                            rect.bottom - rect.top
-                        )
-                        binding.ivCroppedImage.setImageBitmap(croppedBitmap)
-                        binding.ivCroppedImage.visibility = View.VISIBLE
-                        binding.viewFinder.visibility = View.GONE
+                    faceListener = {
+                        faceListener(it)
                     }
                 )
             }
@@ -60,8 +82,5 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         _binding = null
     }
-
-
-
 }
 

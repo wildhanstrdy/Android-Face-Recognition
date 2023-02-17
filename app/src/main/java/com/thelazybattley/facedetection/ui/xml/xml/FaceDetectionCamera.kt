@@ -6,7 +6,6 @@ import androidx.lifecycle.LifecycleOwner
 import com.thelazybattley.facedetection.databinding.ActivityMainBinding
 
 interface FaceDetectionCamera {
-    fun captureVideo()
     fun startCamera(size: Size, faceListener: (Rect) -> Unit)
     fun getPermissions()
     fun setViewBinding(binding: ActivityMainBinding)
