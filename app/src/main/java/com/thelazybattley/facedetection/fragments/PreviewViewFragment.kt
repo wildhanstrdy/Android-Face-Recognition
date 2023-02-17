@@ -8,14 +8,13 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import com.thelazybattley.facedetection.R
 import com.thelazybattley.facedetection.databinding.PreviewViewBinding
-import com.thelazybattley.facedetection.ui.xml.xml.FaceDetectionCamera
-import com.thelazybattley.facedetection.ui.xml.xml.FaceDetectionCameraImpl
+import com.thelazybattley.facedetection.fragments.impl.FaceDetectionCameraImpl
 
 class PreviewViewFragment : Fragment(R.layout.preview_view) {
 
     private var _binding: PreviewViewBinding? = null
     private val binding get() = _binding!!
-    private lateinit var camera : FaceDetectionCamera
+    private lateinit var camera: FaceDetectionCamera
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -30,15 +29,22 @@ class PreviewViewFragment : Fragment(R.layout.preview_view) {
         super.onStart()
         camera = FaceDetectionCameraImpl(requireContext())
         camera.setViewBinding(binding = binding)
-        camera.startCamera(
-            size = Size(binding.root.height, binding.root.width),
-        ) {
-
+        var cameraStarted = false
+        binding.viewFinder.viewTreeObserver.addOnGlobalLayoutListener {
+            if(binding.viewFinder.height > 0 && !cameraStarted) {
+                cameraStarted = true
+                camera.startCamera(
+                    size = Size(binding.viewFinder.width, binding.viewFinder.height),
+                ) {
+                    binding.facebox.setRect(rect = it)
+                }
+            }
         }
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
+        camera.stopCamera()
         _binding = null
     }
 

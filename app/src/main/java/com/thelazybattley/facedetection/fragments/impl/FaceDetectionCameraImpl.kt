@@ -1,4 +1,4 @@
-package com.thelazybattley.facedetection.ui.xml.xml
+package com.thelazybattley.facedetection.fragments.impl
 
 import android.content.Context
 import android.graphics.Rect
@@ -14,11 +14,14 @@ import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.thelazybattley.facedetection.MainActivity
 import com.thelazybattley.facedetection.databinding.PreviewViewBinding
+import com.thelazybattley.facedetection.fragments.FaceDetectionCamera
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamera {
+
+    private lateinit var cameraSelector: CameraSelector
 
     private val options = FaceDetectorOptions.Builder()
         .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
@@ -45,6 +48,9 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
         size: Size,
         faceListener: (Rect) -> Unit,
     ) {
+        binding.ivTakeImage.setOnClickListener {
+            captureImage()
+        }
         cameraExecutor = Executors.newSingleThreadExecutor()
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         cameraProviderFuture.addListener(/* listener = */ {
@@ -56,6 +62,7 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
                 }
 
             imageCapture = ImageCapture.Builder()
+                .setTargetRotation(binding.viewFinder.display.rotation)
                 .build()
 
             val imageAnalyzer = ImageAnalysis.Builder()
@@ -68,7 +75,7 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
                         PoseDetectorImageAnalyzer(faceListener = faceListener)
                     )
                 }
-            val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+            cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
 
             try {
                 cameraProvider.unbindAll()
@@ -107,8 +114,14 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
                     for (face in faces) {
                         val faceContour = face.getContour(FaceContour.FACE)?.points ?: emptyList()
                         if (faceContour.size == 36) {
+                            val width = image.width
+                            val right = width - face.boundingBox.right
+                            val left = right - face.boundingBox.right - face.boundingBox.left
+                            val rect = Rect(
+                                left, face.boundingBox.top, right, face.boundingBox.bottom
+                            )
                             faceListener(
-                                face.boundingBox
+                                rect
                             )
                         }
                     }
@@ -126,5 +139,17 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
         val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
         cameraProvider.unbindAll()
         cameraExecutor.shutdown()
+    }
+
+    private fun captureImage() {
+
+    }
+
+    override fun flipCamera() {
+        if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) {
+            cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+        } else if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
+            cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+        }
     }
 }
