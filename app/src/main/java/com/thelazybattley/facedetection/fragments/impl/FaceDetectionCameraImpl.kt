@@ -1,7 +1,9 @@
 package com.thelazybattley.facedetection.fragments.impl
 
 import android.content.Context
+import android.graphics.Matrix
 import android.graphics.Rect
+import android.graphics.RectF
 import android.util.Log
 import android.util.Size
 import androidx.camera.core.*
@@ -9,6 +11,7 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.*
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.minus
+import androidx.core.graphics.toRect
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceContour
 import com.google.mlkit.vision.face.FaceDetection
@@ -120,17 +123,17 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
                         faceListener(Rect())
                     }
                     for (face in faces) {
-                        val rect = face.boundingBox
-                        rect.right = width - rect.left
-                        rect.left = rect.centerX() - rect.left
-                        if (rect.left < 0) {
-                            rect.left = 0
+                        val flipMatrix = Matrix().apply {
+                            setScale(-1f, 1f)
                         }
-                        if (rect.right > width) {
-                            rect.right = width
-                        }
+                        val mirroredRect = Rect(face.boundingBox)
+                        val rectF = RectF(mirroredRect)
+                        flipMatrix.mapRect(rectF)
+                        rectF.round(mirroredRect)
+                        rectF.left = width + rectF.left
+                        rectF.right = width + rectF.right
                         faceListener(
-                            rect
+                            rectF.toRect()
                         )
                     }
                 }.addOnFailureListener {
