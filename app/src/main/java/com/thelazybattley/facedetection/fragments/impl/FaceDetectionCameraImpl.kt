@@ -8,6 +8,7 @@ import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.*
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.minus
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceContour
 import com.google.mlkit.vision.face.FaceDetection
@@ -24,10 +25,9 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
     private lateinit var cameraSelector: CameraSelector
 
     private val options = FaceDetectorOptions.Builder()
-        .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
-        .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
-        .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
-        .setContourMode(FaceDetectorOptions.CONTOUR_MODE_ALL)
+        .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+        .setContourMode(FaceDetectorOptions.LANDMARK_MODE_NONE)
+        .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
         .enableTracking()
         .build()
 
@@ -72,7 +72,10 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
                 .also { imageAnalysis ->
                     imageAnalysis.setAnalyzer(
                         cameraExecutor,
-                        PoseDetectorImageAnalyzer(faceListener = faceListener)
+                        PoseDetectorImageAnalyzer(
+                            faceListener = faceListener,
+                            width = size.width,
+                        )
                     )
                 }
             cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
@@ -98,6 +101,7 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
     }
 
     private inner class PoseDetectorImageAnalyzer(
+        private val width: Int,
         private val faceListener: (Rect) -> Unit,
     ) : ImageAnalysis.Analyzer {
 
@@ -110,20 +114,24 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
                         imageProxy.imageInfo.rotationDegrees
                     )
 
+
                 faceDetection.process(image).addOnSuccessListener { faces ->
+                    if (faces.isEmpty()) {
+                        faceListener(Rect())
+                    }
                     for (face in faces) {
-                        val faceContour = face.getContour(FaceContour.FACE)?.points ?: emptyList()
-                        if (faceContour.size == 36) {
-                            val width = image.width
-                            val right = width - face.boundingBox.right
-                            val left = right - face.boundingBox.right - face.boundingBox.left
-                            val rect = Rect(
-                                left, face.boundingBox.top, right, face.boundingBox.bottom
-                            )
-                            faceListener(
-                                rect
-                            )
+                        val rect = face.boundingBox
+                        rect.right = width - rect.left
+                        rect.left = rect.centerX() - rect.left
+                        if (rect.left < 0) {
+                            rect.left = 0
                         }
+                        if (rect.right > width) {
+                            rect.right = width
+                        }
+                        faceListener(
+                            rect
+                        )
                     }
                 }.addOnFailureListener {
                     Log.d(TAG, "error: $it")
