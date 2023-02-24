@@ -1,6 +1,7 @@
 package com.thelazybattley.facedetection.fragments.impl
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.graphics.Rect
 import android.graphics.RectF
@@ -10,10 +11,8 @@ import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.*
 import androidx.core.content.ContextCompat
-import androidx.core.graphics.minus
 import androidx.core.graphics.toRect
 import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.face.FaceContour
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.thelazybattley.facedetection.MainActivity
@@ -51,9 +50,6 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
         size: Size,
         faceListener: (Rect) -> Unit,
     ) {
-        binding.ivTakeImage.setOnClickListener {
-            captureImage()
-        }
         cameraExecutor = Executors.newSingleThreadExecutor()
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         cameraProviderFuture.addListener(/* listener = */ {
@@ -77,7 +73,7 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
                         cameraExecutor,
                         PoseDetectorImageAnalyzer(
                             faceListener = faceListener,
-                            width = size.width,
+                            size = size,
                         )
                     )
                 }
@@ -104,7 +100,7 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
     }
 
     private inner class PoseDetectorImageAnalyzer(
-        private val width: Int,
+        private val size: Size,
         private val faceListener: (Rect) -> Unit,
     ) : ImageAnalysis.Analyzer {
 
@@ -130,8 +126,22 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
                         val rectF = RectF(mirroredRect)
                         flipMatrix.mapRect(rectF)
                         rectF.round(mirroredRect)
-                        rectF.left = width + rectF.left
-                        rectF.right = width + rectF.right
+                        rectF.left = size.width + rectF.left
+                        rectF.right = size.width + rectF.right
+
+                        if (rectF.left < 0) {
+                            rectF.left = 0f
+                        }
+                        if (rectF.right > size.width) {
+                            rectF.right = size.width.toFloat()
+                        }
+                        if (rectF.bottom > size.height) {
+                            rectF.bottom = size.height.toFloat()
+                        }
+                        if (rectF.top < 0) {
+                            rectF.top = 0f
+                        }
+
                         faceListener(
                             rectF.toRect()
                         )
@@ -152,8 +162,20 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
         cameraExecutor.shutdown()
     }
 
-    private fun captureImage() {
-
+    override fun captureImage(
+        rect: Rect,
+    ): Bitmap? {
+        if(rect.isEmpty) {
+            return null
+        }
+        val bitmap = binding.viewFinder.bitmap
+        if (bitmap != null) {
+            return Bitmap.createBitmap(
+                bitmap,
+                rect.left, rect.top, rect.width(), rect.height(),
+            )
+        }
+        return null
     }
 
     override fun flipCamera() {

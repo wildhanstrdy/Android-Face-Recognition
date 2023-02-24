@@ -12,13 +12,17 @@ class FaceDetectionBoxView(context: Context, attr: AttributeSet?) : View(context
 
     private var rect: Rect? = null
 
+    private val paint = Paint()
+
+    init {
+        paint.color = Color.RED
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 10f
+    }
+
     override fun onDraw(canvas: Canvas?) {
         super.onDraw(canvas)
         if (rect != null) {
-            val paint = Paint()
-            paint.color = Color.RED
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 10f
             canvas?.drawRect(rect!!, paint)
         }
     }
@@ -27,5 +31,9 @@ class FaceDetectionBoxView(context: Context, attr: AttributeSet?) : View(context
         this.rect = rect
         invalidate()
     }
+
+    fun getRect() = rect
+
+
 
 }
