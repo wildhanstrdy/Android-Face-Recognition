@@ -7,6 +7,7 @@ import android.util.Size
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import androidx.fragment.app.Fragment
 import com.thelazybattley.facedetection.R
 import com.thelazybattley.facedetection.databinding.PreviewViewBinding
@@ -46,17 +47,16 @@ class PreviewViewFragment : Fragment(R.layout.preview_view) {
         super.onStart()
         camera = FaceDetectionCameraImpl(requireContext())
         camera.setViewBinding(binding = binding)
-        var cameraStarted = false
-        binding.viewFinder.viewTreeObserver.addOnGlobalLayoutListener {
-            if (binding.viewFinder.height > 0 && !cameraStarted) {
-                cameraStarted = true
+        binding.viewFinder.viewTreeObserver.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
+            override fun onGlobalLayout() {
                 camera.startCamera(
                     size = Size(binding.viewFinder.width, binding.viewFinder.height),
                 ) { rect ->
                     binding.facebox.setRect(rect = rect)
                 }
+                binding.viewFinder.viewTreeObserver.removeOnGlobalLayoutListener(this)
             }
-        }
+        })
     }
 
     override fun onDestroyView() {
