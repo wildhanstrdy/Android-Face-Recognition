@@ -4,7 +4,7 @@ import android.graphics.Bitmap
 
 interface SimilarityClassifier {
 
-    fun register(name:String, recognition:Recognition)
+    fun register(recognition:Recognition)
 
-    fun recognizeImage(bitmap: Bitmap,storeExtra:Boolean)
+    fun recognizeImage(bitmap: Bitmap,storeExtra:Boolean):Recognition?
 }
