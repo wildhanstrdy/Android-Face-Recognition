@@ -2,21 +2,27 @@ package com.thelazybattley.facedetection
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.os.Build
 import android.os.Bundle
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
+import com.thelazybattley.facedetection.classifier.People
+import com.thelazybattley.facedetection.classifier.SimilarityClassifier
+import com.thelazybattley.facedetection.classifier.TFLiteObjectDetectionAPIModel
 import com.thelazybattley.facedetection.databinding.ActivityMainBinding
 import com.thelazybattley.facedetection.fragments.PeopleListFragment
 import com.thelazybattley.facedetection.fragments.PreviewViewFragment
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 
-class MainActivity : FragmentActivity() {
+class MainActivity : FragmentActivity(),SimilarityClassifier {
 
     private var _binding: ActivityMainBinding? = null
     private val binding get() = _binding!!
-
+    private lateinit var classifier: TFLiteObjectDetectionAPIModel
     companion object {
         private const val TAG = "MainActivity"
         private const val REQUEST_CODE_PERMISSIONS = 10
@@ -36,8 +42,11 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         _binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        classifier = TFLiteObjectDetectionAPIModel(context = this)
+        runBlocking(Dispatchers.IO) {
+            classifier.initialize()
+        }
         val peopleListFragment = PeopleListFragment()
-        val previewViewFragment = PreviewViewFragment()
 
         if (!isAllPermissionGranted()) {
             ActivityCompat.requestPermissions(
@@ -49,8 +58,8 @@ class MainActivity : FragmentActivity() {
 
         binding.bnvActions.setOnItemSelectedListener {
             when (it.itemId) {
-                R.id.takepicture -> setCurrentFragment(previewViewFragment)
-                R.id.scan -> setCurrentFragment(previewViewFragment)
+                R.id.takepicture -> setCurrentFragment(PreviewViewFragment.initialize(false))
+                R.id.scan -> setCurrentFragment(PreviewViewFragment.initialize(true))
                 R.id.people -> setCurrentFragment(peopleListFragment)
             }
             true
@@ -74,5 +83,25 @@ class MainActivity : FragmentActivity() {
             replace(R.id.fcv_fragment, fragment)
             commit()
         }
+    }
+
+    override fun register(people: People) {
+        classifier.register(people = people)
+    }
+
+    override fun recognizeImage(bitmap: Bitmap, storeExtra: Boolean): People? {
+        return classifier.recognizeImage(bitmap,storeExtra)
+    }
+
+    override fun recognizeImageFaceNet2(bitmap: Bitmap): Pair<People,Float>? {
+        return classifier.recognizeImageFaceNet2(bitmap)
+    }
+
+    override fun featureExtraction(bitmap: Bitmap): FloatArray {
+        return classifier.featureExtraction(bitmap = bitmap)
+    }
+
+    override fun getRegisteredPeople(): List<People> {
+        return classifier.getRegisteredPeople()
     }
 }

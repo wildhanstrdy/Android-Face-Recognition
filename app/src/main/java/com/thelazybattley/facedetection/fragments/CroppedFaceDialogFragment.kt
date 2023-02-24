@@ -6,9 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.DialogFragment
-import com.thelazybattley.facedetection.R
 import com.thelazybattley.facedetection.databinding.CroppedFaceDialogFragmentBinding
-import com.thelazybattley.facedetection.databinding.PreviewViewBinding
 
 class CroppedFaceDialogFragment(
     private val bitmap: Bitmap,

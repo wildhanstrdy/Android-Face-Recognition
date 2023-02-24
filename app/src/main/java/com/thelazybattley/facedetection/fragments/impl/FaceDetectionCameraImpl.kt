@@ -41,7 +41,8 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
         private const val TAG = "CameraXApp"
     }
 
-    private lateinit var binding: PreviewViewBinding
+    private val binding get() = _binding!!
+    private var _binding: PreviewViewBinding? = null
 
     private lateinit var cameraExecutor: ExecutorService
     private var imageCapture: ImageCapture? = null
@@ -77,7 +78,7 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
                         )
                     )
                 }
-            cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+            cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
             try {
                 cameraProvider.unbindAll()
@@ -96,7 +97,7 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
 
 
     override fun setViewBinding(binding: PreviewViewBinding) {
-        this.binding = binding
+        this._binding = binding
     }
 
     private inner class PoseDetectorImageAnalyzer(
@@ -176,6 +177,10 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
             )
         }
         return null
+    }
+
+    override fun unbind() {
+        _binding = null
     }
 
     override fun flipCamera() {
