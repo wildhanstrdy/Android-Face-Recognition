@@ -1,125 +1,176 @@
 package com.thelazybattley.facedetection.classifier
 
-import android.content.res.AssetManager
+import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
+import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
-import java.io.FileInputStream
+import org.tensorflow.lite.gpu.CompatibilityList
+import org.tensorflow.lite.gpu.GpuDelegate
+import org.tensorflow.lite.support.common.FileUtil
+import org.tensorflow.lite.support.common.TensorOperator
+import org.tensorflow.lite.support.image.ImageProcessor
+import org.tensorflow.lite.support.image.TensorImage
+import org.tensorflow.lite.support.image.ops.ResizeOp
+import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
+import org.tensorflow.lite.support.tensorbuffer.TensorBufferFloat
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.MappedByteBuffer
-import java.nio.channels.FileChannel
+import kotlin.math.max
+import kotlin.math.pow
 import kotlin.math.sqrt
 
 class TFLiteObjectDetectionAPIModel(
-    private val modelName:String,
-    private val assetManager: AssetManager,
-    private val inputSize:Int,
-    private val isQuantized:Boolean
-) :SimilarityClassifier{
-    companion object{
+    private val modelName: String = MODEL_NAME,
+    private val context: Context,
+    private val inputSize: Int = INPUT_SIZE,
+    private val isQuantized: Boolean = false,
+    private val useGpu: Boolean = true,
+    private val useXNNPack: Boolean = true
+) : SimilarityClassifier {
+    companion object {
         const val OUTPUT_SIZE = 192
+        const val INPUT_SIZE = 112
+        const val MODEL_NAME = "mobile_face_net.tflite"
+
         // Float model
         private const val IMAGE_MEAN = 128.0f
         private const val IMAGE_STD = 128.0f
     }
-    private lateinit var tfLite:Interpreter
-    private lateinit var tfLiteModel:MappedByteBuffer
+
+    private lateinit var tfLite: Interpreter
+    private lateinit var imgTensorProcessor: ImageProcessor
+
     /**
      * Ref :https://learnopencv.com/face-recognition-an-introduction-for-beginners/
      * Encoded result from an image to kartesian diagram
-    * */
+     * */
     private lateinit var embeddings: Array<FloatArray>
-    private lateinit var imgData:ByteBuffer
-    private lateinit var intValues:IntArray
-    private val registeredFaces:MutableList<Recognition> = mutableListOf()
-    suspend fun initialize(){
-         loadAssetFromLocal()?.let {
-             tfLiteModel=it
-             tfLite = Interpreter(tfLiteModel)
-             val numBytesPerChannel = if(isQuantized) 1 else 4
-             imgData = ByteBuffer.allocate(1 * inputSize * inputSize * 3 * numBytesPerChannel)
-             imgData.order(ByteOrder.nativeOrder())
-             intValues = intArrayOf(inputSize*inputSize)
-         }?.run {
-             throw Exception("Failed to initialized model")
-         }
-    }
-    private fun loadAssetFromLocal():MappedByteBuffer?{
-        val assetDesc = assetManager.openFd(modelName)
-        val inputStream = FileInputStream(assetDesc.fileDescriptor)
-        val startOffset: Long = assetDesc.startOffset
-        val declaredLength: Long = assetDesc.declaredLength
-        return inputStream.channel.map(FileChannel.MapMode.READ_ONLY,startOffset,declaredLength)
-    }
-    override fun register(recognition: Recognition) {
-        registeredFaces.add(recognition)
-        //TODO ADD TO LOCAL STORAGE
-    }
-
-    override fun recognizeImage(bitmap: Bitmap, storeExtra: Boolean):Recognition?{
-        bitmap.getPixels(intValues,bitmap.width,bitmap.height,0,0,bitmap.width,bitmap.height)
-        imgData.rewind()
-        for (i in 0 until inputSize){
-            for (j in 0 until inputSize){
-                val pixelValue = intValues[i*inputSize*j]
-                if (isQuantized){
-                    // Quantized model
-                    imgData.put((pixelValue shr 16 and 0xFF).toByte())
-                    imgData.put((pixelValue shr 8 and 0xFF).toByte())
-                    imgData.put((pixelValue and 0xFF).toByte())
-                }else{
-                    // Float model
-                    imgData.putFloat(((pixelValue shr 16 and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
-                    imgData.putFloat(((pixelValue shr 8 and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
-                    imgData.putFloat(((pixelValue and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
+    private lateinit var imgData: ByteBuffer
+    private lateinit var intValues: IntArray
+    private val registeredFaces: MutableList<Person> = mutableListOf()
+    suspend fun initialize() {
+        val tfLiteModel = FileUtil.loadMappedFile(context, modelName)
+        val tfOptions = Interpreter.Options().apply {
+            CompatibilityList().apply {
+                if (isDelegateSupportedOnThisDevice) {
+                    addDelegate(GpuDelegate(bestOptionsForThisDevice))
+                } else {
+                    numThreads = 4
                 }
             }
+            setUseXNNPACK(useXNNPack)
+            useNNAPI = true
         }
+        tfLite = Interpreter(tfLiteModel, tfOptions)
+        imgTensorProcessor = ImageProcessor.Builder()
+            .add(ResizeOp(INPUT_SIZE, INPUT_SIZE, ResizeOp.ResizeMethod.BILINEAR))
+            .add(StandardizeOp())
+            .build()
+        val numBytesPerChannel = if (isQuantized) 1 else 4
+        imgData = ByteBuffer.allocate(1 * inputSize * inputSize * 3 * numBytesPerChannel)
+        imgData.order(ByteOrder.nativeOrder())
+        intValues = intArrayOf(inputSize * inputSize)
+    }
 
-        //Copy input to tensorflow
-        val inputArray = arrayOf<Any>(imgData)
-
-        // Here outputMap is changed to fit the Face Mask detector
-        val outputMap: MutableMap<Int, Any> = mutableMapOf()
-
-        embeddings = Array(1) {
-            FloatArray(
-                OUTPUT_SIZE
+    override fun register(person: Person) {
+        person.img?.let { input ->
+            val features = featureExtraction(input)
+            val newPeople = person.copy(
+                featureExtracted = features
             )
+            registeredFaces.add(newPeople)
+            Log.d("asdf123", "registered:${person.name}||${person.featureExtracted}")
+            //TODO ADD TO LOCAL STORAGE
         }
-        outputMap[0] = embeddings
-        tfLite.runForMultipleInputsOutputs(inputArray,outputMap)
+    }
 
-        //null means there's no recognized faces
+    override fun recognizeImageFaceNet2(bitmap: Bitmap): Pair<Person, Float>? {
+        val input = featureExtraction(bitmap)
         val distance: Float
-        return if(registeredFaces.size > 0){
-            val nearest = findNearest(embeddings[0])
-            if(nearest != null){
+        return if (registeredFaces.size > 0) {
+            val nearest = findNearest(input)
+            if (nearest != null) {
                 distance = nearest.second
-                Log.d(this.javaClass.name,"Nearest ${nearest.first} and distance $distance")
-                nearest.first
-            }else{
+                val newResult = nearest.first.copy(
+                    distance = distance
+                )
+                Log.d("asdf123", "Nearest ${nearest.first.name} and distance $distance")
+                Pair(newResult, nearest.second)
+            } else {
                 null
             }
-        }else{
+        } else {
             null
         }
     }
 
-    private fun findNearest(embedded:FloatArray):Pair<Recognition,Float>?{
-        var result:Pair<Recognition,Float>? = null
-        registeredFaces.forEach {knownEmbedded ->
-            var distance =0f
-            embedded.forEachIndexed { index, value ->
-                val diff = value - knownEmbedded.extra[0][index]
-                distance += diff*diff
-            }
-            distance = sqrt(distance.toDouble()).toFloat()
-            if(result == null || distance < result!!.second){
-                result = Pair(knownEmbedded,distance)
+    override fun featureExtraction(bitmap: Bitmap): Array<FloatArray> {
+        return extractEmbedding(bitmap)
+    }
+
+    override fun getRegisteredPeople(): List<Person> {
+        return registeredFaces
+    }
+
+    private fun extractEmbedding(bitmap: Bitmap): Array<FloatArray> {
+        val input = convertBitmapToBuffer(bitmap)
+        val faceNetModelOutput = Array(1) { FloatArray(OUTPUT_SIZE) }
+        tfLite.run(input, faceNetModelOutput)
+        return faceNetModelOutput
+    }
+
+    private fun convertBitmapToBuffer(image: Bitmap): ByteBuffer {
+        return imgTensorProcessor.process(TensorImage.fromBitmap(image)).buffer
+    }
+
+    private fun L2Norm(x1: FloatArray, x2: FloatArray): Float {
+        var sum = 0.0f
+        for (i in x1.indices) {
+            val diff = x1[i] - x2[i]
+            sum += diff * diff
+        }
+        return sqrt(sum)
+    }
+
+    private fun cosineSimilarity(x1: FloatArray, x2: FloatArray): Float {
+        val mag1 = sqrt(x1.map { it * it }.sum())
+        val mag2 = sqrt(x2.map { it * it }.sum())
+        val dot = x1.mapIndexed { i, xi -> xi * x2[i] }.sum()
+        return dot / (mag1 * mag2)
+    }
+
+    private fun findNearest(embedded: Array<FloatArray>): Pair<Person, Float>? {
+        var result: Pair<Person, Float>? = null
+        registeredFaces.forEach { knownEmbedded ->
+            val avgEmbedded =
+                embedded.reduce { acc, arr -> FloatArray(arr.size) { i -> acc[i] + arr[i] } }
+                    .map { it / embedded.size }.toFloatArray()
+            val avgKnownEmbedded =
+                knownEmbedded.featureExtracted.reduce { acc, arr -> FloatArray(arr.size) { i -> acc[i] + arr[i] } }
+                    .map { it / knownEmbedded.featureExtracted.size }.toFloatArray()
+            val distance = L2Norm(avgKnownEmbedded, avgEmbedded)
+            if (result == null || distance < result!!.second) {
+                result = Pair(knownEmbedded, distance)
             }
         }
         return result
+    }
+
+    class StandardizeOp : TensorOperator {
+
+        override fun apply(p0: TensorBuffer?): TensorBuffer {
+            val pixels = p0!!.floatArray
+            val mean = pixels.average().toFloat()
+            var std = sqrt(pixels.map { pi -> (pi - mean).pow(2) }.sum() / pixels.size.toFloat())
+            std = max(std, 1f / sqrt(pixels.size.toFloat()))
+            for (i in pixels.indices) {
+                pixels[i] = (pixels[i] - mean) / std
+            }
+            val output = TensorBufferFloat.createFixedSize(p0.shape, DataType.FLOAT32)
+            output.loadArray(pixels)
+            return output
+        }
+
     }
 }

@@ -11,4 +11,6 @@ interface FaceDetectionCamera {
     fun stopCamera()
     fun flipCamera()
     fun captureImage(rect: Rect): Bitmap?
+
+    fun unbind()
 }
