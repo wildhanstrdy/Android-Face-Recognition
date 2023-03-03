@@ -60,7 +60,7 @@ class PreviewViewFragment : Fragment() {
                 val person = result?.first
                 Log.d("asdf123","Result : Name: ${result?.first?.name}|| Dist ${result?.first?.distance}")
                 if(person!=null && person.distance<1){
-                    Toast.makeText(requireContext(),"Name: ${person.name} || Similarity:${person.distance}",Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(),"Name: ${person.name} || Similarity:${(1-person.distance)*100}%",Toast.LENGTH_SHORT).show()
                 }
             }else{
                 savePic(croppedBitmap)
