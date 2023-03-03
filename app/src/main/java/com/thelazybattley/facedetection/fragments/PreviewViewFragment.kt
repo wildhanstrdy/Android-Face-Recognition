@@ -11,8 +11,7 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.Toast
 import androidx.fragment.app.Fragment
-import com.thelazybattley.facedetection.R
-import com.thelazybattley.facedetection.classifier.People
+import com.thelazybattley.facedetection.classifier.Person
 import com.thelazybattley.facedetection.classifier.SimilarityClassifier
 import com.thelazybattley.facedetection.databinding.PreviewViewBinding
 import com.thelazybattley.facedetection.fragments.impl.FaceDetectionCameraImpl
@@ -91,7 +90,7 @@ class PreviewViewFragment : Fragment() {
                 bitmap = bitmap,
                 inputNameCallback = {
                     similarityClassifier.register(
-                        People(
+                        Person(
                             name = it,
                             img = bitmap
                         )

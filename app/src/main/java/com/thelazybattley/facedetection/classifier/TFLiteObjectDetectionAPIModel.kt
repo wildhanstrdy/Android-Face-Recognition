@@ -21,170 +21,137 @@ import kotlin.math.pow
 import kotlin.math.sqrt
 
 class TFLiteObjectDetectionAPIModel(
-    private val modelName:String = MODEL_NAME,
+    private val modelName: String = MODEL_NAME,
     private val context: Context,
-    private val inputSize:Int = INPUT_SIZE,
-    private val isQuantized:Boolean = false,
-    private val useGpu:Boolean = true,
-    private val useXNNPack : Boolean = true
-) :SimilarityClassifier{
-    companion object{
+    private val inputSize: Int = INPUT_SIZE,
+    private val isQuantized: Boolean = false,
+    private val useGpu: Boolean = true,
+    private val useXNNPack: Boolean = true
+) : SimilarityClassifier {
+    companion object {
         const val OUTPUT_SIZE = 192
         const val INPUT_SIZE = 112
         const val MODEL_NAME = "mobile_face_net.tflite"
+
         // Float model
         private const val IMAGE_MEAN = 128.0f
         private const val IMAGE_STD = 128.0f
     }
-    private lateinit var tfLite:Interpreter
+
+    private lateinit var tfLite: Interpreter
     private lateinit var imgTensorProcessor: ImageProcessor
+
     /**
      * Ref :https://learnopencv.com/face-recognition-an-introduction-for-beginners/
      * Encoded result from an image to kartesian diagram
-    * */
+     * */
     private lateinit var embeddings: Array<FloatArray>
-    private lateinit var imgData:ByteBuffer
-    private lateinit var intValues:IntArray
-    private val registeredFaces:MutableList<People> = mutableListOf()
-    suspend fun initialize(){
-        val tfLiteModel= FileUtil.loadMappedFile(context,modelName)
+    private lateinit var imgData: ByteBuffer
+    private lateinit var intValues: IntArray
+    private val registeredFaces: MutableList<Person> = mutableListOf()
+    suspend fun initialize() {
+        val tfLiteModel = FileUtil.loadMappedFile(context, modelName)
         val tfOptions = Interpreter.Options().apply {
             CompatibilityList().apply {
-                if(isDelegateSupportedOnThisDevice){
+                if (isDelegateSupportedOnThisDevice) {
                     addDelegate(GpuDelegate(bestOptionsForThisDevice))
-                }else{
+                } else {
                     numThreads = 4
                 }
             }
             setUseXNNPACK(useXNNPack)
             useNNAPI = true
         }
-        tfLite = Interpreter(tfLiteModel,tfOptions)
+        tfLite = Interpreter(tfLiteModel, tfOptions)
         imgTensorProcessor = ImageProcessor.Builder()
-            .add(ResizeOp(INPUT_SIZE, INPUT_SIZE,ResizeOp.ResizeMethod.BILINEAR))
+            .add(ResizeOp(INPUT_SIZE, INPUT_SIZE, ResizeOp.ResizeMethod.BILINEAR))
             .add(StandardizeOp())
             .build()
-        val numBytesPerChannel = if(isQuantized) 1 else 4
+        val numBytesPerChannel = if (isQuantized) 1 else 4
         imgData = ByteBuffer.allocate(1 * inputSize * inputSize * 3 * numBytesPerChannel)
         imgData.order(ByteOrder.nativeOrder())
-        intValues = intArrayOf(inputSize*inputSize)
+        intValues = intArrayOf(inputSize * inputSize)
     }
-    override fun register(people: People) {
-        people.img?.let {input->
+
+    override fun register(person: Person) {
+        person.img?.let { input ->
             val features = featureExtraction(input)
-            val newPeople = people.copy(
+            val newPeople = person.copy(
                 featureExtracted = features
             )
             registeredFaces.add(newPeople)
-            Log.d("asdf123","registered:${people.name}||${people.featureExtracted}")
+            Log.d("asdf123", "registered:${person.name}||${person.featureExtracted}")
             //TODO ADD TO LOCAL STORAGE
         }
     }
 
-    override fun recognizeImage(bitmap: Bitmap, storeExtra: Boolean):People?{
-        bitmap.getPixels(intValues,0,bitmap.width,0,0,bitmap.width,bitmap.height)
-        imgData.rewind()
-        for (i in 0 until inputSize){
-            for (j in 0 until inputSize){
-                val pixelValue = intValues[i*inputSize*j]
-                if (isQuantized){
-                    // Quantized model
-                    imgData.put((pixelValue shr 16 and 0xFF).toByte())
-                    imgData.put((pixelValue shr 8 and 0xFF).toByte())
-                    imgData.put((pixelValue and 0xFF).toByte())
-                }else{
-                    // Float model
-                    imgData.putFloat(((pixelValue shr 16 and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
-                    imgData.putFloat(((pixelValue shr 8 and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
-                    imgData.putFloat(((pixelValue and 0xFF) - IMAGE_MEAN) / IMAGE_STD)
-                }
-            }
-        }
-
-        //Copy input to tensorflow
-        val inputArray = arrayOf<Any>(imgData)
-
-        // Here outputMap is changed to fit the Face Mask detector
-        val outputMap: MutableMap<Int, Any> = mutableMapOf()
-
-        embeddings = Array(1) {
-            FloatArray(
-                OUTPUT_SIZE
-            )
-        }
-        outputMap[0] = embeddings
-        tfLite.runForMultipleInputsOutputs(inputArray,outputMap)
-
-        //null means there's no recognized faces
-        val distance: Float
-        return if(registeredFaces.size > 0){
-            val nearest = findNearest(embeddings[0])
-            if(nearest != null){
-                distance = nearest.second
-                Log.d(this.javaClass.name,"Nearest ${nearest.first} and distance $distance")
-                nearest.first
-            }else{
-                null
-            }
-        }else{
-            null
-        }
-    }
-
-    override fun recognizeImageFaceNet2(bitmap: Bitmap): Pair<People,Float>? {
+    override fun recognizeImageFaceNet2(bitmap: Bitmap): Pair<Person, Float>? {
         val input = featureExtraction(bitmap)
-        val distance:Float
-        return if(registeredFaces.size>0){
+        val distance: Float
+        return if (registeredFaces.size > 0) {
             val nearest = findNearest(input)
-            if(nearest != null){
+            if (nearest != null) {
                 distance = nearest.second
                 val newResult = nearest.first.copy(
                     distance = distance
                 )
-                Log.d("asdf123","Nearest ${nearest.first.name} and distance $distance")
-                Pair(newResult,nearest.second)
-            }else{
+                Log.d("asdf123", "Nearest ${nearest.first.name} and distance $distance")
+                Pair(newResult, nearest.second)
+            } else {
                 null
             }
-        }else{
+        } else {
             null
         }
     }
 
-    override fun featureExtraction(bitmap: Bitmap): FloatArray {
+    override fun featureExtraction(bitmap: Bitmap): Array<FloatArray> {
         return extractEmbedding(bitmap)
     }
 
-    override fun getRegisteredPeople(): List<People> {
+    override fun getRegisteredPeople(): List<Person> {
         return registeredFaces
     }
 
-    private fun extractEmbedding(bitmap:Bitmap):FloatArray{
+    private fun extractEmbedding(bitmap: Bitmap): Array<FloatArray> {
         val input = convertBitmapToBuffer(bitmap)
-        val faceNetModelOutput = Array(1){FloatArray(OUTPUT_SIZE)}
-        tfLite.run(input,faceNetModelOutput)
-        return faceNetModelOutput[0]
+        val faceNetModelOutput = Array(1) { FloatArray(OUTPUT_SIZE) }
+        tfLite.run(input, faceNetModelOutput)
+        return faceNetModelOutput
     }
 
-    private fun convertBitmapToBuffer( image : Bitmap) : ByteBuffer {
-        return imgTensorProcessor.process( TensorImage.fromBitmap( image ) ).buffer
+    private fun convertBitmapToBuffer(image: Bitmap): ByteBuffer {
+        return imgTensorProcessor.process(TensorImage.fromBitmap(image)).buffer
     }
 
-    private fun L2Norm( x1 : FloatArray, x2 : FloatArray ) : Float {
-        return sqrt( x1.mapIndexed{ i , xi -> (xi - x2[ i ]).pow( 2 ) }.sum() )
+    private fun L2Norm(x1: FloatArray, x2: FloatArray): Float {
+        var sum = 0.0f
+        for (i in x1.indices) {
+            val diff = x1[i] - x2[i]
+            sum += diff * diff
+        }
+        return sqrt(sum)
     }
-    private fun cosineSimilarity( x1 : FloatArray , x2 : FloatArray ) : Float {
-        val mag1 = sqrt( x1.map { it * it }.sum() )
-        val mag2 = sqrt( x2.map { it * it }.sum() )
-        val dot = x1.mapIndexed{ i , xi -> xi * x2[ i ] }.sum()
+
+    private fun cosineSimilarity(x1: FloatArray, x2: FloatArray): Float {
+        val mag1 = sqrt(x1.map { it * it }.sum())
+        val mag2 = sqrt(x2.map { it * it }.sum())
+        val dot = x1.mapIndexed { i, xi -> xi * x2[i] }.sum()
         return dot / (mag1 * mag2)
     }
-    private fun findNearest(embedded:FloatArray):Pair<People,Float>?{
-        var result:Pair<People,Float>? = null
-        registeredFaces.forEach {knownEmbedded ->
-            val distance =L2Norm(knownEmbedded.featureExtracted,embedded)
-            if(result == null || distance < result!!.second){
-                result = Pair(knownEmbedded,distance)
+
+    private fun findNearest(embedded: Array<FloatArray>): Pair<Person, Float>? {
+        var result: Pair<Person, Float>? = null
+        registeredFaces.forEach { knownEmbedded ->
+            val avgEmbedded =
+                embedded.reduce { acc, arr -> FloatArray(arr.size) { i -> acc[i] + arr[i] } }
+                    .map { it / embedded.size }.toFloatArray()
+            val avgKnownEmbedded =
+                knownEmbedded.featureExtracted.reduce { acc, arr -> FloatArray(arr.size) { i -> acc[i] + arr[i] } }
+                    .map { it / knownEmbedded.featureExtracted.size }.toFloatArray()
+            val distance = L2Norm(avgKnownEmbedded, avgEmbedded)
+            if (result == null || distance < result!!.second) {
+                result = Pair(knownEmbedded, distance)
             }
         }
         return result
@@ -195,13 +162,13 @@ class TFLiteObjectDetectionAPIModel(
         override fun apply(p0: TensorBuffer?): TensorBuffer {
             val pixels = p0!!.floatArray
             val mean = pixels.average().toFloat()
-            var std = sqrt( pixels.map{ pi -> ( pi - mean ).pow( 2 ) }.sum() / pixels.size.toFloat() )
-            std = max( std , 1f / sqrt( pixels.size.toFloat() ))
-            for ( i in pixels.indices ) {
-                pixels[ i ] = ( pixels[ i ] - mean ) / std
+            var std = sqrt(pixels.map { pi -> (pi - mean).pow(2) }.sum() / pixels.size.toFloat())
+            std = max(std, 1f / sqrt(pixels.size.toFloat()))
+            for (i in pixels.indices) {
+                pixels[i] = (pixels[i] - mean) / std
             }
-            val output = TensorBufferFloat.createFixedSize( p0.shape , DataType.FLOAT32 )
-            output.loadArray( pixels )
+            val output = TensorBufferFloat.createFixedSize(p0.shape, DataType.FLOAT32)
+            output.loadArray(pixels)
             return output
         }
 

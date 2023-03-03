@@ -6,3 +6,4 @@
 
 ## Collaborated with : 
 - [Dellosa Neil](https://github.com/dellosaneil)
+- [Wildhan Satriady](https://github.com/wildhanstrdy)

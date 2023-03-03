@@ -4,11 +4,10 @@ import android.graphics.Bitmap
 
 interface SimilarityClassifier {
 
-    fun register(people:People)
+    fun register(person:Person)
 
-    fun recognizeImage(bitmap: Bitmap,storeExtra:Boolean):People?
-    fun recognizeImageFaceNet2(bitmap: Bitmap):Pair<People,Float>?
-    fun featureExtraction(bitmap: Bitmap):FloatArray
+    fun recognizeImageFaceNet2(bitmap: Bitmap):Pair<Person,Float>?
+    fun featureExtraction(bitmap: Bitmap):Array<FloatArray>
 
-    fun getRegisteredPeople():List<People>
+    fun getRegisteredPeople():List<Person>
 }

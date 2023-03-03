@@ -9,7 +9,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
-import com.thelazybattley.facedetection.classifier.People
+import com.thelazybattley.facedetection.classifier.Person
 import com.thelazybattley.facedetection.classifier.SimilarityClassifier
 import com.thelazybattley.facedetection.classifier.TFLiteObjectDetectionAPIModel
 import com.thelazybattley.facedetection.databinding.ActivityMainBinding
@@ -85,23 +85,19 @@ class MainActivity : FragmentActivity(),SimilarityClassifier {
         }
     }
 
-    override fun register(people: People) {
-        classifier.register(people = people)
+    override fun register(person: Person) {
+        classifier.register(person = person)
     }
 
-    override fun recognizeImage(bitmap: Bitmap, storeExtra: Boolean): People? {
-        return classifier.recognizeImage(bitmap,storeExtra)
-    }
-
-    override fun recognizeImageFaceNet2(bitmap: Bitmap): Pair<People,Float>? {
+    override fun recognizeImageFaceNet2(bitmap: Bitmap): Pair<Person,Float>? {
         return classifier.recognizeImageFaceNet2(bitmap)
     }
 
-    override fun featureExtraction(bitmap: Bitmap): FloatArray {
+    override fun featureExtraction(bitmap: Bitmap): Array<FloatArray> {
         return classifier.featureExtraction(bitmap = bitmap)
     }
 
-    override fun getRegisteredPeople(): List<People> {
+    override fun getRegisteredPeople(): List<Person> {
         return classifier.getRegisteredPeople()
     }
 }

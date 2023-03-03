@@ -3,18 +3,18 @@ package com.thelazybattley.facedetection.classifier
 import android.graphics.Bitmap
 import java.util.*
 
-data class People(
+data class Person(
     val id:String = UUID.randomUUID().toString(),
     val name:String,
     val distance:Float = -1f,
-    var featureExtracted:FloatArray = floatArrayOf(),
+    var featureExtracted:Array<FloatArray> = arrayOf(),
     var img:Bitmap?=null
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
 
-        other as People
+        other as Person
 
         if (id != other.id) return false
         if (name != other.name) return false

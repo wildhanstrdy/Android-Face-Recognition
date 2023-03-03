@@ -78,7 +78,7 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
                         )
                     )
                 }
-            cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+            cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
 
             try {
                 cameraProvider.unbindAll()
