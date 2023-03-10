@@ -7,7 +7,7 @@ interface SimilarityClassifier {
     fun register(person:Person)
 
     fun recognizeImageFaceNet2(bitmap: Bitmap):Pair<Person,Float>?
-    fun featureExtraction(bitmap: Bitmap):Array<FloatArray>
+    fun extractFaceEmbedding(bitmap: Bitmap):Array<FloatArray>
 
     fun getRegisteredPeople():List<Person>
 }

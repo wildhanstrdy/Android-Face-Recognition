@@ -93,8 +93,8 @@ class MainActivity : FragmentActivity(),SimilarityClassifier {
         return classifier.recognizeImageFaceNet2(bitmap)
     }
 
-    override fun featureExtraction(bitmap: Bitmap): Array<FloatArray> {
-        return classifier.featureExtraction(bitmap = bitmap)
+    override fun extractFaceEmbedding(bitmap: Bitmap): Array<FloatArray> {
+        return classifier.extractFaceEmbedding(bitmap = bitmap)
     }
 
     override fun getRegisteredPeople(): List<Person> {
