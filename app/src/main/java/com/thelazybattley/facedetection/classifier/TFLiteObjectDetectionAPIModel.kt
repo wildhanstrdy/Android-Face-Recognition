@@ -15,7 +15,6 @@ import org.tensorflow.lite.support.image.ops.ResizeOp
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
 import org.tensorflow.lite.support.tensorbuffer.TensorBufferFloat
 import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.sqrt
@@ -23,19 +22,12 @@ import kotlin.math.sqrt
 class TFLiteObjectDetectionAPIModel(
     private val modelName: String = MODEL_NAME,
     private val context: Context,
-    private val inputSize: Int = INPUT_SIZE,
-    private val isQuantized: Boolean = false,
-    private val useGpu: Boolean = true,
     private val useXNNPack: Boolean = true
 ) : SimilarityClassifier {
     companion object {
         const val OUTPUT_SIZE = 192
         const val INPUT_SIZE = 112
         const val MODEL_NAME = "mobile_face_net.tflite"
-
-        // Float model
-        private const val IMAGE_MEAN = 128.0f
-        private const val IMAGE_STD = 128.0f
     }
 
     private lateinit var tfLite: Interpreter
@@ -45,9 +37,6 @@ class TFLiteObjectDetectionAPIModel(
      * Ref :https://learnopencv.com/face-recognition-an-introduction-for-beginners/
      * Encoded result from an image to kartesian diagram
      * */
-    private lateinit var embeddings: Array<FloatArray>
-    private lateinit var imgData: ByteBuffer
-    private lateinit var intValues: IntArray
     private val registeredFaces: MutableList<Person> = mutableListOf()
     suspend fun initialize() {
         val tfLiteModel = FileUtil.loadMappedFile(context, modelName)
@@ -67,15 +56,11 @@ class TFLiteObjectDetectionAPIModel(
             .add(ResizeOp(INPUT_SIZE, INPUT_SIZE, ResizeOp.ResizeMethod.BILINEAR))
             .add(StandardizeOp())
             .build()
-        val numBytesPerChannel = if (isQuantized) 1 else 4
-        imgData = ByteBuffer.allocate(1 * inputSize * inputSize * 3 * numBytesPerChannel)
-        imgData.order(ByteOrder.nativeOrder())
-        intValues = intArrayOf(inputSize * inputSize)
     }
 
     override fun register(person: Person) {
         person.img?.let { input ->
-            val features = featureExtraction(input)
+            val features = extractFaceEmbedding(input)
             val newPeople = person.copy(
                 featureExtracted = features
             )
@@ -86,7 +71,7 @@ class TFLiteObjectDetectionAPIModel(
     }
 
     override fun recognizeImageFaceNet2(bitmap: Bitmap): Pair<Person, Float>? {
-        val input = featureExtraction(bitmap)
+        val input = extractFaceEmbedding(bitmap)
         val distance: Float
         return if (registeredFaces.size > 0) {
             val nearest = findNearest(input)
@@ -105,7 +90,7 @@ class TFLiteObjectDetectionAPIModel(
         }
     }
 
-    override fun featureExtraction(bitmap: Bitmap): Array<FloatArray> {
+    override fun extractFaceEmbedding(bitmap: Bitmap): Array<FloatArray> {
         return extractEmbedding(bitmap)
     }
 
