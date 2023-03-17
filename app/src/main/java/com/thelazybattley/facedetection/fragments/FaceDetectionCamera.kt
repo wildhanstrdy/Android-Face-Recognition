@@ -13,4 +13,6 @@ interface FaceDetectionCamera {
     fun captureImage(rect: Rect): Bitmap?
 
     fun unbind()
+
+    fun detectFace(image:Bitmap,successCrop:(bitmap:Bitmap)->Unit);
 }

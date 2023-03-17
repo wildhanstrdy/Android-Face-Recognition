@@ -183,6 +183,24 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
         _binding = null
     }
 
+    override fun detectFace(image: Bitmap, successCrop: (bitmap: Bitmap) -> Unit) {
+        faceDetection.process(InputImage.fromBitmap(image, 0)).addOnSuccessListener { faces ->
+            for (face in faces) {
+               val rect = face.boundingBox
+                successCrop(
+                    Bitmap.createBitmap(
+                        image,
+                        rect.left, rect.top, rect.width(), rect.height(),
+                    )
+                )
+            }
+        }.addOnFailureListener {
+            Log.d(TAG, "error: $it")
+        }.addOnCompleteListener {
+            Log.d(TAG, "complete: $it")
+        }
+    }
+
     override fun flipCamera() {
         if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) {
             cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA

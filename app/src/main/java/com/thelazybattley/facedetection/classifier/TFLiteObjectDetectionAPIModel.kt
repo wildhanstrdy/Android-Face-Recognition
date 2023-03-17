@@ -49,7 +49,7 @@ class TFLiteObjectDetectionAPIModel(
     private lateinit var imgData: ByteBuffer
     private lateinit var intValues: IntArray
     private val registeredFaces: MutableList<Person> = mutableListOf()
-    suspend fun initialize() {
+    fun initialize() {
         val tfLiteModel = FileUtil.loadMappedFile(context, modelName)
         val tfOptions = Interpreter.Options().apply {
             CompatibilityList().apply {
