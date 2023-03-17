@@ -186,7 +186,24 @@ class FaceDetectionCameraImpl(private val context: Context) : FaceDetectionCamer
     override fun detectFace(image: Bitmap, successCrop: (bitmap: Bitmap) -> Unit) {
         faceDetection.process(InputImage.fromBitmap(image, 0)).addOnSuccessListener { faces ->
             for (face in faces) {
-               val rect = face.boundingBox
+//               val rectF = RectF(face.boundingBox)
+//                rectF.left = image.width + rectF.left
+//                rectF.right = image.width + rectF.right
+//
+//                if (rectF.left < 0) {
+//                    rectF.left = 0f
+//                }
+//                if (rectF.right > image.width) {
+//                    rectF.right = image.width.toFloat()
+//                }
+//                if (rectF.bottom > image.height) {
+//                    rectF.bottom = image.height.toFloat()
+//                }
+//                if (rectF.top < 0) {
+//                    rectF.top = 0f
+//                }
+//                val rect = rectF.toRect()
+                val rect = face.boundingBox
                 successCrop(
                     Bitmap.createBitmap(
                         image,
